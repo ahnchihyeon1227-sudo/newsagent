@@ -92,7 +92,7 @@ cp .env.example .env
 | 파일 | keywords | 목적 |
 |------|----------|------|
 | `case-1.json` | `["현대자동차]` | 정상 케이스 — 관련도 높은 키워드 |
-| `case-2.json` | `["건양대학교","박찬양"]` | 실패 케이스 — 빈 keywords, ERROR 출력 확인 |
+| `case-2.json` | `["ai"]` | 실패 케이스 — 번역 오류 확인 |
 
 ---
 
@@ -109,5 +109,5 @@ cp .env.example .env
 ### 5회차
 ![5회차](image/5.jpeg)
 ### 6회차
-![6회차](image/6.jpeg)
+![6회차](image/7.jpeg)
 
