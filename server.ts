@@ -1,6 +1,8 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
+import { spawn } from "child_process";
 import path from "path";
+import fs from "fs";
 import * as dotenv from "dotenv";
 
 dotenv.config();
@@ -10,53 +12,40 @@ const PORT = 3000;
 
 app.use(express.json());
 
-// API Routes
-app.post("/api/news", async (req, res) => {
-  const { keywords, maxArticles = 10 } = req.body;
+app.post("/api/briefing", async (req, res) => {
+  const { keywords, keyword_operators, maxArticles = 10, lang = "ko" } = req.body;
 
   if (!keywords || !Array.isArray(keywords) || keywords.length === 0) {
-    return res.status(400).json({ error: "Keywords are required" });
+    return res.status(400).json({ error: "키워드가 없습니다" });
   }
 
-  const newsApiKey = process.env.NEWS_API_KEY;
-  
+  // KST date
+  const kstDate = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split("T")[0];
+  const config = { keywords, keyword_operators, max_articles: maxArticles, briefing_lang: lang, date: kstDate };
+  const configPath = `/tmp/briefing_config_${Date.now()}.json`;
+  fs.writeFileSync(configPath, JSON.stringify(config));
+
+  const outputFile = path.join(process.cwd(), `briefing_${kstDate.replace(/-/g, "")}.md`);
+  const title = keywords.join(" / ");
+
   try {
-    let articles: any[] = [];
-
-    if (newsApiKey) {
-      const query = keywords.join(" OR ");
-      const newsResponse = await fetch(
-        `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&pageSize=${maxArticles}&apiKey=${newsApiKey}&language=en&sortBy=publishedAt`
-      );
-      
-      if (newsResponse.ok) {
-        const newsData = await newsResponse.json();
-        articles = newsData.articles || [];
-      } else {
-        console.warn("NewsAPI failed or returned error");
-      }
-    }
-
-    res.json({
-      status: "success",
-      articles: articles.map((art: any) => ({
-        title: art.title,
-        source: art.source.name,
-        url: art.url,
-        description: art.description || art.content,
-        publishedAt: art.publishedAt
-      })),
-      hasApiKey: !!newsApiKey
+    await new Promise<void>((resolve, reject) => {
+      const py = spawn("python", ["main.py", "--input", configPath], { cwd: process.cwd() });
+      let stderr = "";
+      py.stderr.on("data", (d) => (stderr += d.toString()));
+      py.on("close", (code) => {
+        fs.unlinkSync(configPath);
+        code === 0 ? resolve() : reject(new Error(stderr || `exit code ${code}`));
+      });
     });
 
-  } catch (error: any) {
-    console.error("News Fetch Error:", error);
-    res.status(500).json({ error: error.message });
+    const md = fs.existsSync(outputFile) ? fs.readFileSync(outputFile, "utf-8") : "";
+    res.json({ status: "success", markdown: md, date: kstDate, title });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 
-
-// Vite Middleware
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -67,9 +56,7 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
+    app.get("*", (_req, res) => res.sendFile(path.join(distPath, "index.html")));
   }
 
   app.listen(PORT, "0.0.0.0", () => {
