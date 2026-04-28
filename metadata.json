@@ -1,6 +1,0 @@
-{
-  "name": "NewsBrief AI Agent",
-  "description": "An AI-powered news briefing agent that fetches, scores, and summarizes news based on your keywords.",
-  "requestFramePermissions": [],
-  "majorCapabilities": []
-}
